@@ -1,0 +1,141 @@
+#include "GP2Y1010AU0F.h"
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
+
+// Define pin numbers for the 7-segment display
+const int a = 12;
+const int b = 13;
+const int c = 14;
+const int d = 15;
+const int e = 16;
+const int f = 17;
+const int g = 18;
+
+const char* gradeText[6] = {
+  "Excellent",   
+  "Good",       
+  "Fair",       
+  "Moderate",    
+  "Poor",        
+  "Hazardous"    
+};
+
+// Define pin number for the warning LED and buzzer
+const int warningLED = 19;
+const int buzzer = 27;
+
+// Instantiate the GP2Y1010AU0F sensor with the appropriate pins
+GP2Y1010AU0F GP2Y(5, 4);
+
+LiquidCrystal_I2C mylcd(0x27,16,2);
+
+// Define the segment patterns for digits 1 to 5 
+int digit[6][7] = {
+  {0, 0, 0, 0, 0, 0, 1}, // Pattern for digit 0 
+  {1, 0, 0, 1, 1, 1, 1}, // Pattern for digit 1
+  {0, 0, 1, 0, 0, 1, 0}, // Pattern for digit 2
+  {0, 0, 0, 0, 1, 1, 0}, // Pattern for digit 3
+  {1, 0, 0, 1, 1, 0, 0}, // Pattern for digit 4
+  {0, 1, 0, 0, 1, 0, 0}  // Pattern for digit 5
+};
+
+// Function to display a digit on the 7-segment display
+void displayDigit(int num) {
+  pinMode(a, OUTPUT);
+  digitalWrite(a, digit[num][0]);
+  pinMode(b, OUTPUT);
+  digitalWrite(b, digit[num][1]);
+  pinMode(c, OUTPUT);
+  digitalWrite(c, digit[num][2]);
+  pinMode(d, OUTPUT);
+  digitalWrite(d, digit[num][3]);
+  pinMode(e, OUTPUT);
+  digitalWrite(e, digit[num][4]);
+  pinMode(f, OUTPUT);
+  digitalWrite(f, digit[num][5]);
+  pinMode(g, OUTPUT);
+  digitalWrite(g, digit[num][6]);
+}
+
+// Setup function for initial configurations
+void setup(){
+  Serial.begin(9600);
+  pinMode(a, OUTPUT);
+  pinMode(b, OUTPUT);
+  pinMode(c, OUTPUT);
+  pinMode(d, OUTPUT);
+  pinMode(e, OUTPUT);
+  pinMode(f, OUTPUT);
+  pinMode(g, OUTPUT);
+
+  // Initialize the warning LED and buzzer pins as output
+  pinMode(warningLED, OUTPUT);
+  digitalWrite(warningLED, LOW);  // Ensure the LED is off initially
+  pinMode(buzzer, OUTPUT);
+  digitalWrite(buzzer, LOW);  // Ensure the buzzer is off initially
+
+  mylcd.init();
+  mylcd.backlight();
+
+}
+
+// Main loop function
+void loop(){
+  double outputV = GP2Y.getOutputV();           // Read the sensor output voltage
+  double ugm3 = GP2Y.getDustDensity(outputV);   // Convert voltage to dust density
+  double aqi = GP2Y.getAQI(ugm3);               // Convert dust density to AQI
+  int gradeInfo = GP2Y.getGradeInfo(aqi);       // Determine the AQI grade
+
+  // Print sensor readings to the serial monitor and LCD1602
+  Serial.println(String("OUTPUT V:") + String(outputV) + String('V'));
+  Serial.println(String("DUST:") + String(ugm3)+ String(" ug/m3"));
+  Serial.println(String("AQI:") + String(aqi));
+  Serial.print("LEVEL:");
+  mylcd.setCursor(0, 0);
+  mylcd.print(String("PM:") + String(ugm3) + String("ug/m3  "));
+  mylcd.setCursor(0, 1);
+  mylcd.print(gradeText[gradeInfo] + String("       "));
+  // Display the AQI grade on the 7-segment display and control the warning LED and buzzer
+  switch (gradeInfo) {
+   case 0:
+    Serial.println("Perfect printing environment");
+    displayDigit(0);
+    break;
+   case 1:
+    Serial.println("Good printing environment");
+    displayDigit(1);
+    break;
+   case 2:
+    Serial.println("Normal printing environment");
+    displayDigit(2);
+    break;
+   case 3:
+    Serial.println("Need to pay attention");
+    displayDigit(3);
+    break;
+   case 4:
+    Serial.println("Need ventilation");
+    displayDigit(4);
+    break;
+   case 5:
+    Serial.println("Need to suspend printing");
+    displayDigit(5);
+    break;
+  }
+  
+  // Flash the warning LED and activate the buzzer
+  if (gradeInfo >= 4) {
+    digitalWrite(warningLED, HIGH);  // Turn on the LED
+    digitalWrite(buzzer, HIGH);      // Turn on the buzzer
+    delay(500);                      // Wait for 0.5 second
+    digitalWrite(warningLED, LOW);   // Turn off the LED
+    digitalWrite(buzzer, LOW);       // Turn off the buzzer
+    delay(500);                      // Wait for 0.5 second
+  } else {
+    digitalWrite(warningLED, LOW);   // Ensure the LED is off
+    digitalWrite(buzzer, LOW);       // Ensure the buzzer is off
+  }
+  
+  Serial.println("");
+  delay(1000);  // Wait for 1 second before the next loop
+}
